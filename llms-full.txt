@@ -1,0 +1,37 @@
+# dynamodb-toolkit-express — extended reference
+
+> Express adapter for `dynamodb-toolkit` v3. Mounts the toolkit's standard REST route pack as Express middleware.
+
+**Status:** scaffolding; implementation pending. Full reference will land with the first real release.
+
+## Scope
+
+A thin translation layer between Express's `(req, res, next)` handler shape and `dynamodb-toolkit`'s framework-agnostic pieces:
+
+- `matchRoute(method, path)` from `dynamodb-toolkit/handler` — pure route-shape recognizer.
+- Parsers from `dynamodb-toolkit/rest-core` — `parseFields`, `parseSort`, `parseFilter`, `parsePatch`, `parseNames`, `parsePaging`, `parseFlag`.
+- Builders + policy from `dynamodb-toolkit/rest-core` — `buildEnvelope`, `buildErrorBody`, `paginationLinks`, `defaultPolicy`, `mapErrorStatus`, `mergePolicy`.
+- A dynamodb-toolkit `Adapter` instance supplied by the caller.
+
+## Target API (provisional)
+
+```ts
+export interface ExpressAdapterOptions<TItem extends Record<string, unknown> = Record<string, unknown>> {
+  policy?: Partial<Policy>;
+  sortableIndices?: Record<string, string>;
+  keyFromPath?: (rawKey: string, adapter: Adapter<TItem>) => Record<string, unknown>;
+  exampleFromContext?: (query: Record<string, string>, body: unknown, req: express.Request) => Record<string, unknown>;
+  maxBodyBytes?: number;
+}
+
+export function createExpressAdapter<TItem extends Record<string, unknown>>(
+  adapter: Adapter<TItem>,
+  options?: ExpressAdapterOptions<TItem>
+): express.RequestHandler;
+```
+
+## Reference
+
+- Parent toolkit: https://github.com/uhop/dynamodb-toolkit
+- Sibling adapter (Koa): https://github.com/uhop/dynamodb-toolkit-koa
+- Route pack contract: https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler

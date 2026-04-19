@@ -1,0 +1,31 @@
+# dynamodb-toolkit-express
+
+> Express adapter for `dynamodb-toolkit` v3. Mounts the toolkit's standard REST route pack as Express middleware.
+
+**Status:** scaffolding. API below is provisional.
+
+## Install
+
+```sh
+npm install dynamodb-toolkit-express dynamodb-toolkit express
+```
+
+## Quick start
+
+```js
+import express from 'express';
+import {Adapter} from 'dynamodb-toolkit';
+import {createExpressAdapter} from 'dynamodb-toolkit-express';
+
+const adapter = new Adapter({client, table: 'planets', keyFields: ['name']});
+const app = express();
+app.use(express.json());
+app.use('/planets', createExpressAdapter(adapter));
+app.listen(3000);
+```
+
+## Links
+
+- Parent toolkit: https://github.com/uhop/dynamodb-toolkit
+- Sibling (Koa): https://github.com/uhop/dynamodb-toolkit-koa
+- Route pack reference: https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler
