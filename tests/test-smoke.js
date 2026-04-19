@@ -1,6 +1,17 @@
 import test from 'tape-six';
 
-test('smoke: package loads', async t => {
-  const pkg = await import('dynamodb-toolkit-express');
-  t.ok(pkg, 'package resolves');
+import {createExpressAdapter} from 'dynamodb-toolkit-express';
+
+import {makeMockAdapter} from './helpers/mock-adapter.js';
+
+test('smoke: package loads + factory returns middleware', t => {
+  const adapter = makeMockAdapter();
+  const mw = createExpressAdapter(adapter);
+  t.equal(typeof mw, 'function', 'middleware is a function');
+  t.equal(mw.length, 3, 'middleware takes (req, res, next)');
+});
+
+test('smoke: options object is optional', t => {
+  const adapter = makeMockAdapter();
+  t.doesNotThrow(() => createExpressAdapter(adapter), 'accepts no options');
 });

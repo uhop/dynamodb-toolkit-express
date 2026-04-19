@@ -1,37 +1,85 @@
 # dynamodb-toolkit-express — extended reference
 
-> Express adapter for `dynamodb-toolkit` v3. Mounts the toolkit's standard REST route pack as Express middleware.
-
-**Status:** scaffolding; implementation pending. Full reference will land with the first real release.
+> Express adapter for `dynamodb-toolkit` v3. One middleware factory, zero runtime dependencies.
 
 ## Scope
 
 A thin translation layer between Express's `(req, res, next)` handler shape and `dynamodb-toolkit`'s framework-agnostic pieces:
 
-- `matchRoute(method, path)` from `dynamodb-toolkit/handler` — pure route-shape recognizer.
-- Parsers from `dynamodb-toolkit/rest-core` — `parseFields`, `parseSort`, `parseFilter`, `parsePatch`, `parseNames`, `parsePaging`, `parseFlag`.
-- Builders + policy from `dynamodb-toolkit/rest-core` — `buildEnvelope`, `buildErrorBody`, `paginationLinks`, `defaultPolicy`, `mapErrorStatus`, `mergePolicy`.
-- A dynamodb-toolkit `Adapter` instance supplied by the caller.
+- `matchRoute(method, path, methodPrefix)` from `dynamodb-toolkit/handler` — pure route-shape recognizer.
+- Parsers from `dynamodb-toolkit/rest-core`: `parseFields`, `parseSort`, `parseFilter`, `parsePatch`, `parseNames`, `parsePaging`, `parseFlag`.
+- Builders + policy from `dynamodb-toolkit/rest-core`: `buildEnvelope`, `paginationLinks`, `defaultPolicy`, `mergePolicy`, `mapErrorStatus`, `buildErrorBody`.
+- A consumer-supplied `dynamodb-toolkit` `Adapter` instance.
 
-## Target API (provisional)
+## API
 
 ```ts
-export interface ExpressAdapterOptions<TItem extends Record<string, unknown> = Record<string, unknown>> {
-  policy?: Partial<Policy>;
+import type {Request, RequestHandler} from 'express';
+import type {Adapter} from 'dynamodb-toolkit';
+import type {RestPolicy} from 'dynamodb-toolkit/rest-core';
+
+interface ExpressAdapterOptions<TItem extends Record<string, unknown> = Record<string, unknown>> {
+  policy?: Partial<RestPolicy>;
   sortableIndices?: Record<string, string>;
   keyFromPath?: (rawKey: string, adapter: Adapter<TItem>) => Record<string, unknown>;
-  exampleFromContext?: (query: Record<string, string>, body: unknown, req: express.Request) => Record<string, unknown>;
+  exampleFromContext?: (query: Record<string, string>, body: unknown, req: Request) => Record<string, unknown>;
   maxBodyBytes?: number;
 }
 
-export function createExpressAdapter<TItem extends Record<string, unknown>>(
+function createExpressAdapter<TItem extends Record<string, unknown> = Record<string, unknown>>(
   adapter: Adapter<TItem>,
   options?: ExpressAdapterOptions<TItem>
-): express.RequestHandler;
+): RequestHandler;
 ```
+
+## Routes
+
+Rooted at the mount point (`app.use('/planets', createExpressAdapter(adapter))` strips the prefix natively):
+
+| Method | Path                | Adapter method                   |
+| ------ | ------------------- | -------------------------------- |
+| GET    | `/`                 | `getAll` → envelope + links      |
+| POST   | `/`                 | `post`                           |
+| DELETE | `/`                 | `deleteAllByParams`              |
+| GET    | `/-by-names`        | `getByKeys`                      |
+| DELETE | `/-by-names`        | `deleteByKeys`                   |
+| PUT    | `/-load`            | `putAll`                         |
+| PUT    | `/-clone`           | `cloneAllByParams` (body=overlay)|
+| PUT    | `/-move`            | `moveAllByParams` (body=overlay) |
+| PUT    | `/-clone-by-names`  | `cloneByKeys` (body=overlay)     |
+| PUT    | `/-move-by-names`   | `moveByKeys` (body=overlay)      |
+| GET    | `/:key`             | `getByKey`                       |
+| PUT    | `/:key`             | `put` (URL key merged into body) |
+| PATCH  | `/:key`             | `patch` (meta keys → options)    |
+| DELETE | `/:key`             | `delete`                         |
+| PUT    | `/:key/-clone`      | `clone`                          |
+| PUT    | `/:key/-move`       | `move`                           |
+
+Wire contract — envelope keys, query syntax, meta-key prefixes, status codes — is identical to `dynamodb-toolkit/handler`. Override via `options.policy`.
+
+## Dispatch
+
+- Unknown route shape → `next()`. Other middleware can respond; Express's default 404 fires otherwise.
+- Known shape, unsupported method → `405 Method Not Allowed`.
+- Thrown errors map through `policy.errorBody(err)` + `mapErrorStatus` into a JSON body plus the matching status. Unexpected post-response failures are forwarded to `next(err)` so the Express error pipeline can finish the socket.
+
+## Body parsing
+
+- If `req.body` is set (e.g. via `express.json()`), it is used as-is. The body-parser's own byte cap applies.
+- Otherwise the raw Node request stream is consumed with a `maxBodyBytes` cap (default **1 MiB**). Over-cap → `413 PayloadTooLarge`; malformed JSON → `400 BadJsonBody`.
+
+## Query coercion
+
+Express's default `qs` parser can produce nested objects and arrays of objects in `req.query`. `rest-core` parsers expect plain strings, so the adapter coerces at the boundary: string values pass through, `string[]` values collapse to the first entry (matching `URLSearchParams.get`), anything else is dropped.
+
+## Compatibility
+
+- **Express 4** and **Express 5** (peer `^4.21.0 || ^5.0.0`). Async errors are surfaced through `next(err)` regardless of Express version.
+- **Node 20+**, **Bun**, **Deno** — the test suite runs identically on all three.
 
 ## Reference
 
 - Parent toolkit: https://github.com/uhop/dynamodb-toolkit
 - Sibling adapter (Koa): https://github.com/uhop/dynamodb-toolkit-koa
-- Route pack contract: https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler
+- Route pack / wire contract: https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler
+- AGENTS.md: conventions for contributors and AI agents.

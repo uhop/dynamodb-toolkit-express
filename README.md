@@ -3,17 +3,15 @@
 [npm-img]: https://img.shields.io/npm/v/dynamodb-toolkit-express.svg
 [npm-url]: https://npmjs.org/package/dynamodb-toolkit-express
 
-Express adapter for [`dynamodb-toolkit`](https://github.com/uhop/dynamodb-toolkit) v3. Mounts the toolkit's standard REST route pack as an Express middleware — same wire contract as `dynamodb-toolkit/handler` (the bundled `node:http` adapter) and [`dynamodb-toolkit-koa`](https://github.com/uhop/dynamodb-toolkit-koa), translated for Express.
+Express adapter for [`dynamodb-toolkit`](https://github.com/uhop/dynamodb-toolkit) v3. Mounts the toolkit's standard REST route pack as an Express middleware — same wire contract as `dynamodb-toolkit/handler` (the bundled `node:http` adapter) and [`dynamodb-toolkit-koa`](https://github.com/uhop/dynamodb-toolkit-koa), translated for Express's `(req, res, next)` shape.
 
-> **Status: scaffolding.** Implementation to follow. Sibling package `dynamodb-toolkit-koa@0.1.0` is the structural reference.
+Zero runtime dependencies; `express` and `dynamodb-toolkit` are peer dependencies.
 
 ## Install
 
 ```sh
 npm install dynamodb-toolkit-express dynamodb-toolkit express @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
 ```
-
-`dynamodb-toolkit` and `express` are declared as **peer dependencies**.
 
 ## Quick start
 
@@ -38,12 +36,49 @@ app.use('/planets', createExpressAdapter(adapter));
 app.listen(3000);
 ```
 
-The adapter serves the [standard route pack](https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler) — envelope keys, status codes, and prefixes all configurable via `options.policy`.
+`app.use(prefix, middleware)` is the idiomatic way to mount the adapter at a sub-path — Express strips the prefix from `req.path` natively. Unrecognized routes hand back to `next()`, so the adapter composes cleanly with the rest of your Express stack.
+
+## Options
+
+| Option               | Default                                 | Purpose                                                        |
+| -------------------- | --------------------------------------- | -------------------------------------------------------------- |
+| `policy`             | `defaultPolicy`                         | Partial overrides for prefixes, envelope keys, status codes.   |
+| `sortableIndices`    | `{}`                                    | Map sort-field name → GSI name for `?sort=` / `?sort=-field`.  |
+| `keyFromPath`        | `(raw, a) => ({[a.keyFields[0]]: raw})` | Convert `:key` path segment to a key object (composite keys).  |
+| `exampleFromContext` | `() => ({})`                            | Derive `prepareListInput` `example` from `(query, body, req)`. |
+| `maxBodyBytes`       | `1048576` (1 MiB)                       | Cap for stream-parsed bodies (ignored when a body-parser ran). |
+
+Consumers using `express.json()` (or any compatible body-parser) can rely on the pre-parsed `req.body`; the adapter uses it when set, falls back to streaming the raw request otherwise.
+
+## Routes
+
+Rooted at the mount point:
+
+| Method | Path               | Adapter method                |
+| ------ | ------------------ | ----------------------------- |
+| GET    | `/`                | `getAll` (envelope + links)   |
+| POST   | `/`                | `post`                        |
+| DELETE | `/`                | `deleteAllByParams`           |
+| GET    | `/-by-names`       | `getByKeys`                   |
+| DELETE | `/-by-names`       | `deleteByKeys`                |
+| PUT    | `/-load`           | `putAll`                      |
+| PUT    | `/-clone`          | `cloneAllByParams` (overlay)  |
+| PUT    | `/-move`           | `moveAllByParams` (overlay)   |
+| PUT    | `/-clone-by-names` | `cloneByKeys` (overlay)       |
+| PUT    | `/-move-by-names`  | `moveByKeys` (overlay)        |
+| GET    | `/:key`            | `getByKey`                    |
+| PUT    | `/:key`            | `put` (URL key merged in)     |
+| PATCH  | `/:key`            | `patch` (meta keys → options) |
+| DELETE | `/:key`            | `delete`                      |
+| PUT    | `/:key/-clone`     | `clone`                       |
+| PUT    | `/:key/-move`      | `move`                        |
+
+Wire contract — query syntax, envelope shape, meta-key prefixes, status codes — matches the bundled [HTTP handler](https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler). Everything is configurable through `options.policy`.
 
 ## Compatibility
 
-- **Express 4** and **Express 5** (peer dep range `^4.21.0 || ^5.0.0`).
-- **Node 20+**; cross-runtime test matrix (Deno / Bun) TBD — depends on Express's own compat.
+- **Express 4** and **Express 5** (peer range `^4.21.0 || ^5.0.0`).
+- **Node 20+**, **Bun**, **Deno** — the adapter's tests run cleanly under all three.
 
 ## License
 
