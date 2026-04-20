@@ -18,11 +18,19 @@ import type {Request, RequestHandler} from 'express';
 import type {Adapter} from 'dynamodb-toolkit';
 import type {RestPolicy} from 'dynamodb-toolkit/rest-core';
 
+interface ExpressExampleContext<TItem extends Record<string, unknown> = Record<string, unknown>> {
+  query: Record<string, string>;
+  body: unknown;
+  adapter: Adapter<TItem>;
+  framework: 'express';
+  req: Request;
+}
+
 interface ExpressAdapterOptions<TItem extends Record<string, unknown> = Record<string, unknown>> {
   policy?: Partial<RestPolicy>;
   sortableIndices?: Record<string, string>;
   keyFromPath?: (rawKey: string, adapter: Adapter<TItem>) => Record<string, unknown>;
-  exampleFromContext?: (query: Record<string, string>, body: unknown, req: Request) => Record<string, unknown>;
+  exampleFromContext?: (context: ExpressExampleContext<TItem>) => Record<string, unknown>;
   maxBodyBytes?: number;
 }
 
@@ -66,7 +74,8 @@ Wire contract — envelope keys, query syntax, meta-key prefixes, status codes �
 ## Body parsing
 
 - If `req.body` is set (e.g. via `express.json()`), it is used as-is. The body-parser's own byte cap applies.
-- Otherwise the raw Node request stream is consumed with a `maxBodyBytes` cap (default **1 MiB**). Over-cap → `413 PayloadTooLarge`; malformed JSON → `400 BadJsonBody`.
+- Otherwise the raw Node request stream is consumed with a `maxBodyBytes` cap (default **1 MiB**, measured in bytes via the shared `readJsonBody` from `dynamodb-toolkit/handler`). Over-cap → `413 PayloadTooLarge`; malformed JSON → `400 BadJsonBody`.
+- Write routes (POST /, PUT /:key, PATCH /:key) require a JSON object body; `null` / arrays / primitives reject with `400 BadBody`.
 
 ## Query coercion
 

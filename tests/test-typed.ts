@@ -50,7 +50,7 @@ test('typed: ExpressAdapterOptions typechecks the full options surface', t => {
     policy: {defaultLimit: 25, maxLimit: 200, needTotal: false},
     sortableIndices: {name: 'by-name-index'},
     keyFromPath: (raw, adp) => ({[adp.keyFields[0]]: raw}),
-    exampleFromContext: (query, _body, req) => ({tenant: query.tenant ?? 'default', via: req.method}),
+    exampleFromContext: ({query, req}) => ({tenant: query.tenant ?? 'default', via: req.method}),
     maxBodyBytes: 128 * 1024
   };
 

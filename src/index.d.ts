@@ -3,6 +3,27 @@ import type {Request, RequestHandler} from 'express';
 import type {Adapter} from 'dynamodb-toolkit';
 import type {RestPolicy} from 'dynamodb-toolkit/rest-core';
 
+/**
+ * Context passed to {@link ExpressAdapterOptions.exampleFromContext}. Mirrors
+ * the shape used by the other framework adapters so cross-adapter callbacks
+ * can branch on `framework`.
+ */
+export interface ExpressExampleContext<TItem extends Record<string, unknown> = Record<string, unknown>> {
+  /** Parsed URL query-string. Arrays / nested objects have already been normalized. */
+  query: Record<string, string>;
+  /**
+   * Parsed JSON body. Always the parsed body before the call — `null` only
+   * when the request had no body, not as a placeholder for unread bodies.
+   */
+  body: unknown;
+  /** The Adapter targeted by this middleware. */
+  adapter: Adapter<TItem>;
+  /** Discriminator for cross-adapter callbacks. */
+  framework: 'express';
+  /** Express `Request` — pull auth / headers / ip from upstream middleware. */
+  req: Request;
+}
+
 /** Options for {@link createExpressAdapter}. */
 export interface ExpressAdapterOptions<TItem extends Record<string, unknown> = Record<string, unknown>> {
   /** Partial overrides for the REST policy (merged with the default). */
@@ -39,18 +60,11 @@ export interface ExpressAdapterOptions<TItem extends Record<string, unknown> = R
    * Default: `() => ({})` — no example; `prepareListInput` derives
    * everything from the `index` argument alone.
    *
-   * @param query Parsed URL query-string. Nested objects and non-string
-   *   values are dropped; array values are collapsed to the first element.
-   * @param body Parsed request body. `null` on `GET /` and `DELETE /`; the
-   *   overlay object on `PUT /-clone` / `PUT /-move`.
-   * @param req The full Express `Request`. Use it to pull auth info from
-   *   upstream middleware (`req.user.tenantId`), request metadata
-   *   (`req.headers`, `req.ip`), etc.
-   * @returns The `example` argument threaded into `Adapter.prepareListInput`.
-   *   Typically shapes a `KeyConditionExpression` for a GSI (e.g.
-   *   `{tenantId: req.user.tenantId}` for per-tenant scoping).
+   * Takes an options bag of `{query, body, adapter, framework: 'express', req}`;
+   * the shape matches the other framework adapters so a tenant-scoping
+   * callback can be shared across koa, express, fetch, and lambda.
    */
-  exampleFromContext?: (query: Record<string, string>, body: unknown, req: Request) => Record<string, unknown>;
+  exampleFromContext?: (context: ExpressExampleContext<TItem>) => Record<string, unknown>;
   /**
    * Cap for the raw request body in bytes. Enforced only when the consumer
    * has not pre-parsed the body (i.e. `req.body` is `undefined`). If an
@@ -58,6 +72,8 @@ export interface ExpressAdapterOptions<TItem extends Record<string, unknown> = R
    * parser's cap applies instead.
    *
    * Default: `1048576` (1 MiB), matching the bundled `node:http` handler.
+   * Measured in bytes via the extracted `readJsonBody` helper, not UTF-16
+   * code units as the 0.1.x variant did.
    */
   maxBodyBytes?: number;
 }

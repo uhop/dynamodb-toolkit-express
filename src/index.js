@@ -1,8 +1,8 @@
 // Express adapter for dynamodb-toolkit v3.
 //
 // Translates Express `(req, res, next)` into the toolkit's framework-agnostic pieces:
-//   - matchRoute (dynamodb-toolkit/handler) for route-shape recognition
-//   - parsers / builders / policy (dynamodb-toolkit/rest-core) for wire format
+//   - matchRoute + readJsonBody (dynamodb-toolkit/handler)
+//   - parsers / builders / policy (dynamodb-toolkit/rest-core)
 //   - a consumer-supplied Adapter for the DynamoDB layer
 //
 // Wire contract matches the bundled node:http handler (dynamodb-toolkit/handler):
@@ -12,39 +12,20 @@
 // loggers, etc).
 
 import {
-  parseFields,
-  parseSort,
-  parseFilter,
   parsePatch,
   parseNames,
-  parsePaging,
+  parseFields,
   parseFlag,
   buildEnvelope,
   paginationLinks,
   mergePolicy,
-  mapErrorStatus
+  mapErrorStatus,
+  buildListOptions,
+  resolveSort,
+  coerceStringQuery,
+  validateWriteBody
 } from 'dynamodb-toolkit/rest-core';
-import {matchRoute} from 'dynamodb-toolkit/handler';
-
-import {readJsonBody} from './read-body.js';
-
-// Express's default `qs` parser can produce nested objects and arrays of
-// objects in `req.query`. rest-core parsers expect plain strings. Keep string
-// values as-is, collapse string[] to its first element (matches
-// URLSearchParams.get), and drop anything else — nested shapes aren't
-// expressible in the documented route contract.
-const coerceStringQuery = query => {
-  const out = {};
-  for (const k of Object.keys(query)) {
-    const v = query[k];
-    if (typeof v === 'string') {
-      out[k] = v;
-    } else if (Array.isArray(v) && typeof v[0] === 'string') {
-      out[k] = v[0];
-    }
-  }
-  return out;
-};
+import {matchRoute, readJsonBody} from 'dynamodb-toolkit/handler';
 
 // Prefer a pre-parsed body (`express.json()` or equivalent populates
 // `req.body`). Fall back to streaming the raw Node request with our own cap.
@@ -52,7 +33,12 @@ const coerceStringQuery = query => {
 // enforce its own cap.
 const getBody = async (req, maxBodyBytes) => {
   if (req.body !== undefined) return req.body;
-  return readJsonBody(req, maxBodyBytes);
+  // Pre-consumed stream (e.g. a prior custom middleware read req up to EOF
+  // without populating req.body): resolve null instead of hanging.
+  if (req.readableEnded || req.complete) return null;
+  // `destroy: false` — Express needs the socket alive so the 413 response
+  // still flushes.
+  return readJsonBody(req, maxBodyBytes, {destroy: false});
 };
 
 export const createExpressAdapter = (adapter, options = {}) => {
@@ -62,25 +48,13 @@ export const createExpressAdapter = (adapter, options = {}) => {
   const exampleFromContext = options.exampleFromContext || (() => ({}));
   const maxBodyBytes = options.maxBodyBytes ?? 1024 * 1024;
 
-  const buildListOptions = query => {
-    const fields = parseFields(query.fields);
-    const filter = parseFilter(query.filter);
-    const paging = parsePaging(query, {defaultLimit: policy.defaultLimit, maxLimit: policy.maxLimit, maxOffset: policy.maxOffset});
-    const consistent = parseFlag(query.consistent);
-    /** @type {import('dynamodb-toolkit').ListOptions} */
-    const out = {...paging, consistent, needTotal: policy.needTotal};
-    if (fields) out.fields = fields;
-    if (filter) out.filter = filter.query;
-    return out;
-  };
+  const makeExampleCtx = (query, body, req) => ({query, body, adapter, framework: 'express', req});
 
-  const resolveSort = query => {
-    const sort = parseSort(query.sort);
-    if (!sort) return {index: undefined, descending: false};
-    return {index: sortableIndices[sort.field], descending: sort.direction === 'desc'};
-  };
-
-  const sendError = (res, err) => {
+  // E1: once headers are flushed, Express throws ERR_HTTP_HEADERS_SENT on
+  // res.status(); forward via next so Express's error pipeline can close
+  // the socket without swallowing the original cause.
+  const sendError = (res, next, err) => {
+    if (res.headersSent) return next(err);
     const status = err?.status && err.status >= 400 && err.status < 600 ? err.status : mapErrorStatus(err, policy.statusCodes);
     res.status(status).json(policy.errorBody(err));
   };
@@ -113,10 +87,11 @@ export const createExpressAdapter = (adapter, options = {}) => {
   // --- collection-level handlers ---
 
   const handleGetAll = async (req, res, query) => {
-    const opts = buildListOptions(query);
-    const {index, descending} = resolveSort(query);
+    /** @type {import('dynamodb-toolkit').ListOptions} */
+    const opts = buildListOptions(query, policy);
+    const {index, descending} = resolveSort(query, sortableIndices);
     if (descending) opts.descending = true;
-    const example = exampleFromContext(query, null, req);
+    const example = exampleFromContext(makeExampleCtx(query, null, req));
     const result = await adapter.getAll(opts, example, index);
 
     const links = paginationLinks(result.offset, result.limit, result.total, urlBuilderFor(req));
@@ -126,15 +101,15 @@ export const createExpressAdapter = (adapter, options = {}) => {
   };
 
   const handlePost = async (req, res) => {
-    const body = await getBody(req, maxBodyBytes);
+    const body = validateWriteBody(await getBody(req, maxBodyBytes));
     await adapter.post(body);
     sendNoContent(res);
   };
 
   const handleDeleteAll = async (req, res, query) => {
-    const opts = buildListOptions(query);
-    const {index} = resolveSort(query);
-    const example = exampleFromContext(query, null, req);
+    const opts = buildListOptions(query, policy);
+    const {index} = resolveSort(query, sortableIndices);
+    const example = exampleFromContext(makeExampleCtx(query, null, req));
     const params = await adapter._buildListParams(opts, false, example, index);
     const r = await adapter.deleteAllByParams(params);
     sendJson(res, 200, {processed: r.processed});
@@ -185,10 +160,10 @@ export const createExpressAdapter = (adapter, options = {}) => {
     sendJson(res, 200, {processed: r.processed});
   };
 
-  const handleLoad = async (req, res) => {
+  const handleLoad = async (req, res, next) => {
     const body = await getBody(req, maxBodyBytes);
     if (!Array.isArray(body)) {
-      return sendError(res, Object.assign(new Error('Body must be an array of items'), {status: 400, code: 'BadLoadBody'}));
+      return sendError(res, next, Object.assign(new Error('Body must be an array of items'), {status: 400, code: 'BadLoadBody'}));
     }
     const r = await adapter.putAll(body);
     sendJson(res, 200, {processed: r.processed});
@@ -197,9 +172,10 @@ export const createExpressAdapter = (adapter, options = {}) => {
   const handleCloneAll = async (req, res, query) => {
     const body = await getBody(req, maxBodyBytes);
     const overlay = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
-    const opts = buildListOptions(query);
-    const {index} = resolveSort(query);
-    const example = exampleFromContext(query, body, req);
+    /** @type {import('dynamodb-toolkit').ListOptions} */
+    const opts = buildListOptions(query, policy);
+    const {index} = resolveSort(query, sortableIndices);
+    const example = exampleFromContext(makeExampleCtx(query, body, req));
     const params = await adapter._buildListParams(opts, false, example, index);
     const r = await adapter.cloneAllByParams(params, item => ({...item, ...overlay}));
     sendJson(res, 200, {processed: r.processed});
@@ -208,9 +184,10 @@ export const createExpressAdapter = (adapter, options = {}) => {
   const handleMoveAll = async (req, res, query) => {
     const body = await getBody(req, maxBodyBytes);
     const overlay = body && typeof body === 'object' && !Array.isArray(body) ? body : {};
-    const opts = buildListOptions(query);
-    const {index} = resolveSort(query);
-    const example = exampleFromContext(query, body, req);
+    /** @type {import('dynamodb-toolkit').ListOptions} */
+    const opts = buildListOptions(query, policy);
+    const {index} = resolveSort(query, sortableIndices);
+    const example = exampleFromContext(makeExampleCtx(query, body, req));
     const params = await adapter._buildListParams(opts, false, example, index);
     const r = await adapter.moveAllByParams(params, item => ({...item, ...overlay}));
     sendJson(res, 200, {processed: r.processed});
@@ -227,7 +204,7 @@ export const createExpressAdapter = (adapter, options = {}) => {
   };
 
   const handleItemPut = async (req, res, key, query) => {
-    const body = await getBody(req, maxBodyBytes);
+    const body = /** @type {Record<string, unknown>} */ (validateWriteBody(await getBody(req, maxBodyBytes)));
     const force = parseFlag(query.force);
     const merged = {...body, ...key};
     await adapter.put(merged, {force});
@@ -235,7 +212,7 @@ export const createExpressAdapter = (adapter, options = {}) => {
   };
 
   const handleItemPatch = async (req, res, key) => {
-    const body = await getBody(req, maxBodyBytes);
+    const body = /** @type {Record<string, unknown>} */ (validateWriteBody(await getBody(req, maxBodyBytes)));
     const {patch, options: patchOptions} = parsePatch(body, {metaPrefix: policy.metaPrefix});
     await adapter.patch(key, patch, patchOptions);
     sendNoContent(res);
@@ -266,6 +243,7 @@ export const createExpressAdapter = (adapter, options = {}) => {
 
   return (req, res, next) => {
     const query = coerceStringQuery(req.query);
+    // matchRoute promotes HEAD → GET internally; route.method is effective.
     const route = matchRoute(req.method, req.path, policy.methodPrefix);
 
     // Unknown route shape — hand back to the Express middleware chain so
@@ -287,7 +265,7 @@ export const createExpressAdapter = (adapter, options = {}) => {
           case 'collectionMethod':
             if (route.method === 'GET' && route.name === 'by-names') return await handleGetByNames(req, res, query);
             if (route.method === 'DELETE' && route.name === 'by-names') return await handleDeleteByNames(req, res, query);
-            if (route.method === 'PUT' && route.name === 'load') return await handleLoad(req, res);
+            if (route.method === 'PUT' && route.name === 'load') return await handleLoad(req, res, next);
             if (route.method === 'PUT' && route.name === 'clone') return await handleCloneAll(req, res, query);
             if (route.method === 'PUT' && route.name === 'move') return await handleMoveAll(req, res, query);
             if (route.method === 'PUT' && route.name === 'clone-by-names') return await handleCloneByNames(req, res, query);
@@ -309,9 +287,9 @@ export const createExpressAdapter = (adapter, options = {}) => {
           }
         }
         // Route shape matched, but no handler for this method — explicit 405.
-        return sendError(res, Object.assign(new Error('Method not allowed for this route'), {status: 405, code: 'MethodNotAllowed'}));
+        return sendError(res, next, Object.assign(new Error('Method not allowed for this route'), {status: 405, code: 'MethodNotAllowed'}));
       } catch (err) {
-        sendError(res, err);
+        sendError(res, next, err);
       }
     };
 

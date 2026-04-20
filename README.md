@@ -45,8 +45,8 @@ app.listen(3000);
 | `policy`             | `defaultPolicy`                         | Partial overrides for prefixes, envelope keys, status codes.   |
 | `sortableIndices`    | `{}`                                    | Map sort-field name → GSI name for `?sort=` / `?sort=-field`.  |
 | `keyFromPath`        | `(raw, a) => ({[a.keyFields[0]]: raw})` | Convert `:key` path segment to a key object (composite keys).  |
-| `exampleFromContext` | `() => ({})`                            | Derive `prepareListInput` `example` from `(query, body, req)`. |
-| `maxBodyBytes`       | `1048576` (1 MiB)                       | Cap for stream-parsed bodies (ignored when a body-parser ran). |
+| `exampleFromContext` | `() => ({})`                            | Derive `prepareListInput` `example` from `{query, body, adapter, framework: 'express', req}`. |
+| `maxBodyBytes`       | `1048576` (1 MiB)                       | Cap for stream-parsed bodies, measured in bytes (ignored when a body-parser ran). |
 
 Consumers using `express.json()` (or any compatible body-parser) can rely on the pre-parsed `req.body`; the adapter uses it when set, falls back to streaming the raw request otherwise.
 
