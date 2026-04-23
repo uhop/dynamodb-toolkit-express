@@ -40,13 +40,13 @@ app.listen(3000);
 
 ## Options
 
-| Option               | Default                                 | Purpose                                                        |
-| -------------------- | --------------------------------------- | -------------------------------------------------------------- |
-| `policy`             | `defaultPolicy`                         | Partial overrides for prefixes, envelope keys, status codes.   |
-| `sortableIndices`    | `{}`                                    | Map sort-field name → GSI name for `?sort=` / `?sort=-field`.  |
-| `keyFromPath`        | `(raw, a) => ({[a.keyFields[0]]: raw})` | Convert `:key` path segment to a key object (composite keys).  |
-| `exampleFromContext` | `() => ({})`                            | Derive `prepareListInput` `example` from `{query, body, adapter, framework: 'express', req}`. |
-| `maxBodyBytes`       | `1048576` (1 MiB)                       | Cap for stream-parsed bodies, measured in bytes (ignored when a body-parser ran). |
+| Option               | Default                                      | Purpose                                                                                       |
+| -------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `policy`             | `defaultPolicy`                              | Partial overrides for prefixes, envelope keys, status codes.                                  |
+| `sortableIndices`    | `{}`                                         | Map sort-field name → GSI name for `?sort=` / `?sort=-field`.                                 |
+| `keyFromPath`        | `(raw, a) => ({[a.keyFields[0].name]: raw})` | Convert `:key` path segment to a key object (composite keys).                                 |
+| `exampleFromContext` | `() => ({})`                                 | Derive `prepareListInput` `example` from `{query, body, adapter, framework: 'express', req}`. |
+| `maxBodyBytes`       | `1048576` (1 MiB)                            | Cap for stream-parsed bodies, measured in bytes (ignored when a body-parser ran).             |
 
 Consumers using `express.json()` (or any compatible body-parser) can rely on the pre-parsed `req.body`; the adapter uses it when set, falls back to streaming the raw request otherwise.
 
@@ -56,14 +56,14 @@ Rooted at the mount point:
 
 | Method | Path               | Adapter method                |
 | ------ | ------------------ | ----------------------------- |
-| GET    | `/`                | `getAll` (envelope + links)   |
+| GET    | `/`                | `getList` (envelope + links)  |
 | POST   | `/`                | `post`                        |
-| DELETE | `/`                | `deleteAllByParams`           |
+| DELETE | `/`                | `deleteListByParams`          |
 | GET    | `/-by-names`       | `getByKeys`                   |
 | DELETE | `/-by-names`       | `deleteByKeys`                |
-| PUT    | `/-load`           | `putAll`                      |
-| PUT    | `/-clone`          | `cloneAllByParams` (overlay)  |
-| PUT    | `/-move`           | `moveAllByParams` (overlay)   |
+| PUT    | `/-load`           | `putItems`                    |
+| PUT    | `/-clone`          | `cloneListByParams` (overlay) |
+| PUT    | `/-move`           | `moveListByParams` (overlay)  |
 | PUT    | `/-clone-by-names` | `cloneByKeys` (overlay)       |
 | PUT    | `/-move-by-names`  | `moveByKeys` (overlay)        |
 | GET    | `/:key`            | `getByKey`                    |

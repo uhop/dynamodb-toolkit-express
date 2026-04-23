@@ -44,7 +44,7 @@ const getBody = async (req, maxBodyBytes) => {
 export const createExpressAdapter = (adapter, options = {}) => {
   const policy = mergePolicy(options.policy);
   const sortableIndices = options.sortableIndices || {};
-  const keyFromPath = options.keyFromPath || ((rawKey, adp) => ({[adp.keyFields[0]]: rawKey}));
+  const keyFromPath = options.keyFromPath || ((rawKey, adp) => ({[adp.keyFields[0].name]: rawKey}));
   const exampleFromContext = options.exampleFromContext || (() => ({}));
   const maxBodyBytes = options.maxBodyBytes ?? 1024 * 1024;
 
@@ -92,7 +92,7 @@ export const createExpressAdapter = (adapter, options = {}) => {
     const {index, descending} = resolveSort(query, sortableIndices);
     if (descending) opts.descending = true;
     const example = exampleFromContext(makeExampleCtx(query, null, req));
-    const result = await adapter.getAll(opts, example, index);
+    const result = await adapter.getList(opts, example, index);
 
     const links = paginationLinks(result.offset, result.limit, result.total, urlBuilderFor(req));
     const envelopeOpts = {keys: policy.envelope};
@@ -111,7 +111,7 @@ export const createExpressAdapter = (adapter, options = {}) => {
     const {index} = resolveSort(query, sortableIndices);
     const example = exampleFromContext(makeExampleCtx(query, null, req));
     const params = await adapter._buildListParams(opts, false, example, index);
-    const r = await adapter.deleteAllByParams(params);
+    const r = await adapter.deleteListByParams(params);
     sendJson(res, 200, {processed: r.processed});
   };
 
@@ -165,7 +165,7 @@ export const createExpressAdapter = (adapter, options = {}) => {
     if (!Array.isArray(body)) {
       return sendError(res, next, Object.assign(new Error('Body must be an array of items'), {status: 400, code: 'BadLoadBody'}));
     }
-    const r = await adapter.putAll(body);
+    const r = await adapter.putItems(body);
     sendJson(res, 200, {processed: r.processed});
   };
 
@@ -177,7 +177,7 @@ export const createExpressAdapter = (adapter, options = {}) => {
     const {index} = resolveSort(query, sortableIndices);
     const example = exampleFromContext(makeExampleCtx(query, body, req));
     const params = await adapter._buildListParams(opts, false, example, index);
-    const r = await adapter.cloneAllByParams(params, item => ({...item, ...overlay}));
+    const r = await adapter.cloneListByParams(params, item => ({...item, ...overlay}));
     sendJson(res, 200, {processed: r.processed});
   };
 
@@ -189,7 +189,7 @@ export const createExpressAdapter = (adapter, options = {}) => {
     const {index} = resolveSort(query, sortableIndices);
     const example = exampleFromContext(makeExampleCtx(query, body, req));
     const params = await adapter._buildListParams(opts, false, example, index);
-    const r = await adapter.moveAllByParams(params, item => ({...item, ...overlay}));
+    const r = await adapter.moveListByParams(params, item => ({...item, ...overlay}));
     sendJson(res, 200, {processed: r.processed});
   };
 

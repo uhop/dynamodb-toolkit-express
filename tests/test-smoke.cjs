@@ -11,7 +11,7 @@ const {createExpressAdapter} = require('dynamodb-toolkit-express');
 
 // Minimal adapter stand-in: createExpressAdapter only reads `keyFields` at
 // dispatch time, not at factory time. Enough for a require-shape smoke check.
-const fakeAdapter = {keyFields: ['name']};
+const fakeAdapter = {keyFields: [{name: 'name', type: 'string'}]};
 
 test('cjs: main entry symbols resolve via require()', t => {
   t.equal(typeof createExpressAdapter, 'function', 'createExpressAdapter factory');
@@ -27,7 +27,7 @@ test('cjs: factory accepts the full options surface', t => {
   const mw = createExpressAdapter(fakeAdapter, {
     policy: {statusCodes: {miss: 410}},
     sortableIndices: {name: 'by-name-index'},
-    keyFromPath: (raw, adp) => ({[adp.keyFields[0]]: raw}),
+    keyFromPath: (raw, adp) => ({[adp.keyFields[0].name]: raw}),
     exampleFromContext: ({query}) => ({tenant: query.tenant || 'default'}),
     maxBodyBytes: 64 * 1024
   });

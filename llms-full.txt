@@ -44,24 +44,24 @@ function createExpressAdapter<TItem extends Record<string, unknown> = Record<str
 
 Rooted at the mount point (`app.use('/planets', createExpressAdapter(adapter))` strips the prefix natively):
 
-| Method | Path                | Adapter method                   |
-| ------ | ------------------- | -------------------------------- |
-| GET    | `/`                 | `getAll` → envelope + links      |
-| POST   | `/`                 | `post`                           |
-| DELETE | `/`                 | `deleteAllByParams`              |
-| GET    | `/-by-names`        | `getByKeys`                      |
-| DELETE | `/-by-names`        | `deleteByKeys`                   |
-| PUT    | `/-load`            | `putAll`                         |
-| PUT    | `/-clone`           | `cloneAllByParams` (body=overlay)|
-| PUT    | `/-move`            | `moveAllByParams` (body=overlay) |
-| PUT    | `/-clone-by-names`  | `cloneByKeys` (body=overlay)     |
-| PUT    | `/-move-by-names`   | `moveByKeys` (body=overlay)      |
-| GET    | `/:key`             | `getByKey`                       |
-| PUT    | `/:key`             | `put` (URL key merged into body) |
-| PATCH  | `/:key`             | `patch` (meta keys → options)    |
-| DELETE | `/:key`             | `delete`                         |
-| PUT    | `/:key/-clone`      | `clone`                          |
-| PUT    | `/:key/-move`       | `move`                           |
+| Method | Path                | Adapter method                    |
+| ------ | ------------------- | --------------------------------- |
+| GET    | `/`                 | `getList` → envelope + links      |
+| POST   | `/`                 | `post`                            |
+| DELETE | `/`                 | `deleteListByParams`              |
+| GET    | `/-by-names`        | `getByKeys`                       |
+| DELETE | `/-by-names`        | `deleteByKeys`                    |
+| PUT    | `/-load`            | `putItems`                        |
+| PUT    | `/-clone`           | `cloneListByParams` (body=overlay)|
+| PUT    | `/-move`            | `moveListByParams` (body=overlay) |
+| PUT    | `/-clone-by-names`  | `cloneByKeys` (body=overlay)      |
+| PUT    | `/-move-by-names`   | `moveByKeys` (body=overlay)       |
+| GET    | `/:key`             | `getByKey`                        |
+| PUT    | `/:key`             | `put` (URL key merged into body)  |
+| PATCH  | `/:key`             | `patch` (meta keys → options)     |
+| DELETE | `/:key`             | `delete`                          |
+| PUT    | `/:key/-clone`      | `clone`                           |
+| PUT    | `/:key/-move`       | `move`                            |
 
 Wire contract — envelope keys, query syntax, meta-key prefixes, status codes — is identical to `dynamodb-toolkit/handler`. Override via `options.policy`.
 

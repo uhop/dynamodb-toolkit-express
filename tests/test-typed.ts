@@ -49,7 +49,7 @@ test('typed: ExpressAdapterOptions typechecks the full options surface', t => {
   const opts: ExpressAdapterOptions<Planet> = {
     policy: {defaultLimit: 25, maxLimit: 200, needTotal: false},
     sortableIndices: {name: 'by-name-index'},
-    keyFromPath: (raw, adp) => ({[adp.keyFields[0]]: raw}),
+    keyFromPath: (raw, adp) => ({[adp.keyFields[0].name]: raw}),
     exampleFromContext: ({query, req}) => ({tenant: query.tenant ?? 'default', via: req.method}),
     maxBodyBytes: 128 * 1024
   };
