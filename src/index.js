@@ -1,3 +1,5 @@
+// @ts-self-types="./index.d.ts"
+
 // Express adapter for dynamodb-toolkit v3.
 //
 // Translates Express `(req, res, next)` into the toolkit's framework-agnostic pieces:

@@ -39,6 +39,7 @@ dynamodb-toolkit-express/
 │   ├── test-*.js              # Unit + mock-based tests (default `npm test`)
 │   └── helpers/               # Fake req/res + shared test fixtures
 ├── llms.txt / llms-full.txt   # AI-readable API reference
+├── ARCHITECTURE.md            # Internal layout + design notes (maintainers)
 └── .github/workflows/tests.yml
 ```
 
@@ -48,10 +49,11 @@ The published tarball includes only `src/` + `README.md` + `LICENSE` + `llms.txt
 
 - **Do not import `node:*` modules at runtime in `src/`.** Type-only imports in `.d.ts` are fine. Tests may use `node:*` freely. Express itself uses `node:http` — that's the consumer's problem, not the adapter's.
 - **Prettier** enforces formatting (`.prettierrc`). Run `npm run lint:fix` before commits.
-- **JSDoc `@param` + `@returns`** on every exported symbol in the `.d.ts` sidecars. Semantic `@returns` on non-void returns is mandatory.
+- **`.d.ts` is the sole source of types and docs.** Every `.js` opens with `// @ts-self-types="./<file>.d.ts"` so IDE hover and importers defer to the sidecar; `.js` files carry no JSDoc except the load-bearing inline `/** @type */` annotations the implementation needs to type-check. JSDoc `@param` + `@returns` lives on every exported symbol in the `.d.ts`; semantic `@returns` on non-void returns is mandatory.
 - **Arrow functions and FP style.** Prefer `=>` unless `this` is needed. Lightweight objects over classes.
 - **No `any` in TypeScript.** Use proper types or `unknown`.
+- **No narrating comments.** Comments are short _why_-markers only — a non-trivial decision or constraint, an algorithm reference, or required JSDoc. Never narrate _what_ the code does; the bar is _why_, never _what_.
 
 ## Release posture
 
-See `.claude/commands/release-check.md` for the full checklist. Commit, tag, and `npm publish` are user-driven.
+Run the `release-check` skill for the full pre-publish checklist. Commit, tag, and `npm publish` are user-driven. Tags are bare semver (`0.3.0`, no `v` prefix).
