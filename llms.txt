@@ -34,5 +34,7 @@ app.listen(3000);
 
 - Parent toolkit: https://github.com/uhop/dynamodb-toolkit
 - Sibling (Koa): https://github.com/uhop/dynamodb-toolkit-koa
+- Sibling (Fetch): https://github.com/uhop/dynamodb-toolkit-fetch
+- Sibling (Lambda): https://github.com/uhop/dynamodb-toolkit-lambda
 - Route pack reference: https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler
 - Extended reference: `llms-full.txt`

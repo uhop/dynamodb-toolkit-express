@@ -3,7 +3,7 @@
 [npm-img]: https://img.shields.io/npm/v/dynamodb-toolkit-express.svg
 [npm-url]: https://npmjs.org/package/dynamodb-toolkit-express
 
-Express adapter for [`dynamodb-toolkit`](https://github.com/uhop/dynamodb-toolkit) v3. Mounts the toolkit's standard REST route pack as an Express middleware — same wire contract as `dynamodb-toolkit/handler` (the bundled `node:http` adapter) and [`dynamodb-toolkit-koa`](https://github.com/uhop/dynamodb-toolkit-koa), translated for Express's `(req, res, next)` shape.
+Express adapter for [`dynamodb-toolkit`](https://github.com/uhop/dynamodb-toolkit) v3. Mounts the toolkit's standard REST route pack as an Express middleware — same wire contract as `dynamodb-toolkit/handler` (the bundled `node:http` adapter), [`dynamodb-toolkit-koa`](https://github.com/uhop/dynamodb-toolkit-koa), [`dynamodb-toolkit-fetch`](https://github.com/uhop/dynamodb-toolkit-fetch), and [`dynamodb-toolkit-lambda`](https://github.com/uhop/dynamodb-toolkit-lambda), translated for Express's `(req, res, next)` shape.
 
 Zero runtime dependencies; `express` and `dynamodb-toolkit` are peer dependencies.
 

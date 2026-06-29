@@ -90,5 +90,7 @@ Express's default `qs` parser can produce nested objects and arrays of objects i
 
 - Parent toolkit: https://github.com/uhop/dynamodb-toolkit
 - Sibling adapter (Koa): https://github.com/uhop/dynamodb-toolkit-koa
+- Sibling adapter (Fetch): https://github.com/uhop/dynamodb-toolkit-fetch
+- Sibling adapter (Lambda): https://github.com/uhop/dynamodb-toolkit-lambda
 - Route pack / wire contract: https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler
 - AGENTS.md: conventions for contributors and AI agents.
