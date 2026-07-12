@@ -82,7 +82,7 @@
     "express": "^5.2.1",
     "prettier": "^3.9.3",
     "tape-six": "^1.11.0",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "files": [
     "src",
