@@ -3,82 +3,31 @@
 [npm-img]: https://img.shields.io/npm/v/dynamodb-toolkit-express.svg
 [npm-url]: https://npmjs.org/package/dynamodb-toolkit-express
 
-Express adapter for [`dynamodb-toolkit`](https://github.com/uhop/dynamodb-toolkit) v3. Mounts the toolkit's standard REST route pack as an Express middleware — same wire contract as `dynamodb-toolkit/handler` (the bundled `node:http` adapter), [`dynamodb-toolkit-koa`](https://github.com/uhop/dynamodb-toolkit-koa), [`dynamodb-toolkit-fetch`](https://github.com/uhop/dynamodb-toolkit-fetch), and [`dynamodb-toolkit-lambda`](https://github.com/uhop/dynamodb-toolkit-lambda), translated for Express's `(req, res, next)` shape.
+> **Superseded.** The Express adapter now ships inside [`dynamodb-toolkit`](https://github.com/uhop/dynamodb-toolkit) as the **`dynamodb-toolkit/express`** subpath export (3.8.0+). This package is a **frozen re-export thunk**: it keeps existing consumers working unchanged and receives no further development. The repository is archived.
 
-Zero runtime dependencies; `express` and `dynamodb-toolkit` are peer dependencies.
+## Migration
 
-## Install
+Change the import — nothing else:
 
-```sh
-npm install dynamodb-toolkit-express dynamodb-toolkit express @aws-sdk/client-dynamodb @aws-sdk/lib-dynamodb
+```diff
+-import {createExpressAdapter} from 'dynamodb-toolkit-express';
++import {createExpressAdapter} from 'dynamodb-toolkit/express';
 ```
 
-## Quick start
+Then drop `dynamodb-toolkit-express` from your `package.json`. The API, options, and wire contract are identical — the code simply lives in the core package now (Express remains duck-typed at runtime; the core stays zero-dependency).
 
-```js
-import express from 'express';
-import {DynamoDBClient} from '@aws-sdk/client-dynamodb';
-import {DynamoDBDocumentClient} from '@aws-sdk/lib-dynamodb';
-import {Adapter} from 'dynamodb-toolkit';
-import {createExpressAdapter} from 'dynamodb-toolkit-express';
+## What this thunk is
 
-const client = DynamoDBDocumentClient.from(new DynamoDBClient({region: 'us-east-1'}));
+`export * from 'dynamodb-toolkit/express'` — nothing else. It declares an open-ended peer on `dynamodb-toolkit >= 3.8.0`, so future core releases never require a thunk update.
 
-const adapter = new Adapter({
-  client,
-  table: 'planets',
-  keyFields: ['name']
-});
+Documentation lives in the core wiki: [Framework adapters](https://github.com/uhop/dynamodb-toolkit/wiki/Framework-adapters) (shared surface) and [Express adapter](https://github.com/uhop/dynamodb-toolkit/wiki/Express-adapter).
 
-const app = express();
-app.use(express.json());
-app.use('/planets', createExpressAdapter(adapter));
-app.listen(3000);
-```
+## Release notes
 
-`app.use(prefix, middleware)` is the idiomatic way to mount the adapter at a sub-path — Express strips the prefix from `req.path` natively. Unrecognized routes hand back to `next()`, so the adapter composes cleanly with the rest of your Express stack.
+- 0.4.0 _Frozen re-export thunk over `dynamodb-toolkit/express`; superseded by the core subpath. No API changes._
+- 0.3.0 _Standalone adapter line (final implementation release); see the core wiki for current docs._
 
-## Options
-
-| Option               | Default                                      | Purpose                                                                                       |
-| -------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `policy`             | `defaultPolicy`                              | Partial overrides for prefixes, envelope keys, status codes.                                  |
-| `sortableIndices`    | `{}`                                         | Map sort-field name → GSI name for `?sort=` / `?sort=-field`.                                 |
-| `keyFromPath`        | `(raw, a) => ({[a.keyFields[0].name]: raw})` | Convert `:key` path segment to a key object (composite keys).                                 |
-| `exampleFromContext` | `() => ({})`                                 | Derive `prepareListInput` `example` from `{query, body, adapter, framework: 'express', req}`. |
-| `maxBodyBytes`       | `1048576` (1 MiB)                            | Cap for stream-parsed bodies, measured in bytes (ignored when a body-parser ran).             |
-
-Consumers using `express.json()` (or any compatible body-parser) can rely on the pre-parsed `req.body`; the adapter uses it when set, falls back to streaming the raw request otherwise.
-
-## Routes
-
-Rooted at the mount point:
-
-| Method | Path               | Adapter method                |
-| ------ | ------------------ | ----------------------------- |
-| GET    | `/`                | `getList` (envelope + links)  |
-| POST   | `/`                | `post`                        |
-| DELETE | `/`                | `deleteListByParams`          |
-| GET    | `/-by-names`       | `getByKeys`                   |
-| DELETE | `/-by-names`       | `deleteByKeys`                |
-| PUT    | `/-load`           | `putItems`                    |
-| PUT    | `/-clone`          | `cloneListByParams` (overlay) |
-| PUT    | `/-move`           | `moveListByParams` (overlay)  |
-| PUT    | `/-clone-by-names` | `cloneByKeys` (overlay)       |
-| PUT    | `/-move-by-names`  | `moveByKeys` (overlay)        |
-| GET    | `/:key`            | `getByKey`                    |
-| PUT    | `/:key`            | `put` (URL key merged in)     |
-| PATCH  | `/:key`            | `patch` (meta keys → options) |
-| DELETE | `/:key`            | `delete`                      |
-| PUT    | `/:key/-clone`     | `clone`                       |
-| PUT    | `/:key/-move`      | `move`                        |
-
-Wire contract — query syntax, envelope shape, meta-key prefixes, status codes — matches the bundled [HTTP handler](https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler). Everything is configurable through `options.policy`.
-
-## Compatibility
-
-- **Express 4** and **Express 5** (peer range `^4.21.0 || ^5.0.0`).
-- **Node 20+**, **Bun**, **Deno** — the adapter's tests run cleanly under all three.
+Full details in the wiki's [Release notes](https://github.com/uhop/dynamodb-toolkit-express/wiki/Release-notes).
 
 ## License
 

@@ -1,96 +1,13 @@
-# dynamodb-toolkit-express — extended reference
+# dynamodb-toolkit-express (frozen re-export thunk)
 
-> Express adapter for `dynamodb-toolkit` v3. One middleware factory, zero runtime dependencies.
+> Superseded by the `dynamodb-toolkit/express` subpath export (dynamodb-toolkit 3.8.0+). This package re-exports that subpath verbatim and receives no further development.
 
-## Scope
+New code should import the subpath directly:
 
-A thin translation layer between Express's `(req, res, next)` handler shape and `dynamodb-toolkit`'s framework-agnostic pieces:
-
-- `matchRoute(method, path, methodPrefix)` from `dynamodb-toolkit/handler` — pure route-shape recognizer.
-- Parsers from `dynamodb-toolkit/rest-core`: `parseFields`, `parseSort`, `parseFilter`, `parsePatch`, `parseNames`, `parsePaging`, `parseFlag`.
-- Builders + policy from `dynamodb-toolkit/rest-core`: `buildEnvelope`, `paginationLinks`, `defaultPolicy`, `mergePolicy`, `mapErrorStatus`, `buildErrorBody`.
-- A consumer-supplied `dynamodb-toolkit` `Adapter` instance.
-
-## API
-
-```ts
-import type {Request, RequestHandler} from 'express';
-import type {Adapter} from 'dynamodb-toolkit';
-import type {RestPolicy} from 'dynamodb-toolkit/rest-core';
-
-interface ExpressExampleContext<TItem extends Record<string, unknown> = Record<string, unknown>> {
-  query: Record<string, string>;
-  body: unknown;
-  adapter: Adapter<TItem>;
-  framework: 'express';
-  req: Request;
-}
-
-interface ExpressAdapterOptions<TItem extends Record<string, unknown> = Record<string, unknown>> {
-  policy?: Partial<RestPolicy>;
-  sortableIndices?: Record<string, string>;
-  keyFromPath?: (rawKey: string, adapter: Adapter<TItem>) => Record<string, unknown>;
-  exampleFromContext?: (context: ExpressExampleContext<TItem>) => Record<string, unknown>;
-  maxBodyBytes?: number;
-}
-
-function createExpressAdapter<TItem extends Record<string, unknown> = Record<string, unknown>>(
-  adapter: Adapter<TItem>,
-  options?: ExpressAdapterOptions<TItem>
-): RequestHandler;
+```js
+import {createExpressAdapter} from 'dynamodb-toolkit/express';
 ```
 
-## Routes
-
-Rooted at the mount point (`app.use('/planets', createExpressAdapter(adapter))` strips the prefix natively):
-
-| Method | Path                | Adapter method                    |
-| ------ | ------------------- | --------------------------------- |
-| GET    | `/`                 | `getList` → envelope + links      |
-| POST   | `/`                 | `post`                            |
-| DELETE | `/`                 | `deleteListByParams`              |
-| GET    | `/-by-names`        | `getByKeys`                       |
-| DELETE | `/-by-names`        | `deleteByKeys`                    |
-| PUT    | `/-load`            | `putItems`                        |
-| PUT    | `/-clone`           | `cloneListByParams` (body=overlay)|
-| PUT    | `/-move`            | `moveListByParams` (body=overlay) |
-| PUT    | `/-clone-by-names`  | `cloneByKeys` (body=overlay)      |
-| PUT    | `/-move-by-names`   | `moveByKeys` (body=overlay)       |
-| GET    | `/:key`             | `getByKey`                        |
-| PUT    | `/:key`             | `put` (URL key merged into body)  |
-| PATCH  | `/:key`             | `patch` (meta keys → options)     |
-| DELETE | `/:key`             | `delete`                          |
-| PUT    | `/:key/-clone`      | `clone`                           |
-| PUT    | `/:key/-move`       | `move`                            |
-
-Wire contract — envelope keys, query syntax, meta-key prefixes, status codes — is identical to `dynamodb-toolkit/handler`. Override via `options.policy`.
-
-## Dispatch
-
-- Unknown route shape → `next()`. Other middleware can respond; Express's default 404 fires otherwise.
-- Known shape, unsupported method → `405 Method Not Allowed`.
-- Thrown errors map through `policy.errorBody(err)` + `mapErrorStatus` into a JSON body plus the matching status. Unexpected post-response failures are forwarded to `next(err)` so the Express error pipeline can finish the socket.
-
-## Body parsing
-
-- If `req.body` is set (e.g. via `express.json()`), it is used as-is. The body-parser's own byte cap applies.
-- Otherwise the raw Node request stream is consumed with a `maxBodyBytes` cap (default **1 MiB**, measured in bytes via the shared `readJsonBody` from `dynamodb-toolkit/handler`). Over-cap → `413 PayloadTooLarge`; malformed JSON → `400 BadJsonBody`.
-- Write routes (POST /, PUT /:key, PATCH /:key) require a JSON object body; `null` / arrays / primitives reject with `400 BadBody`.
-
-## Query coercion
-
-Express's default `qs` parser can produce nested objects and arrays of objects in `req.query`. `rest-core` parsers expect plain strings, so the adapter coerces at the boundary: string values pass through, `string[]` values collapse to the first entry (matching `URLSearchParams.get`), anything else is dropped.
-
-## Compatibility
-
-- **Express 4** and **Express 5** (peer `^4.21.0 || ^5.0.0`). Async errors are surfaced through `next(err)` regardless of Express version.
-- **Node 20+**, **Bun**, **Deno** — the test suite runs identically on all three.
-
-## Reference
-
-- Parent toolkit: https://github.com/uhop/dynamodb-toolkit
-- Sibling adapter (Koa): https://github.com/uhop/dynamodb-toolkit-koa
-- Sibling adapter (Fetch): https://github.com/uhop/dynamodb-toolkit-fetch
-- Sibling adapter (Lambda): https://github.com/uhop/dynamodb-toolkit-lambda
-- Route pack / wire contract: https://github.com/uhop/dynamodb-toolkit/wiki/HTTP-handler
-- AGENTS.md: conventions for contributors and AI agents.
+- API reference: https://github.com/uhop/dynamodb-toolkit/blob/master/llms.txt (§ Framework adapters)
+- Full reference: https://github.com/uhop/dynamodb-toolkit/blob/master/llms-full.txt (§ 7.4)
+- Wiki: https://github.com/uhop/dynamodb-toolkit/wiki/Express-adapter
